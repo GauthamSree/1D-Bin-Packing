@@ -1,0 +1,9 @@
+.DS_STORE
+__pycache__/
+
+# Data folder
+data/
+
+# Testing
+debug.log
+mutation.py
