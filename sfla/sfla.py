@@ -117,7 +117,11 @@ class SFLA:
                 new_free_bin[bin_id] -= item
                 new_sol[old_bin_id].remove(item)
                 new_free_bin[old_bin_id] += item
-        
+
+        idxs = [i for i, size in enumerate(new_free_bin) if size == self.bins_data.max_bin_capacity]
+        new_free_bin = [size for i, size in enumerate(new_free_bin) if i not in idxs]
+        new_sol = [bin_items for i, bin_items in enumerate(new_sol) if i not in idxs]
+
         new_frog = BinDetails(bins=new_sol, free_bin_caps=new_free_bin)
         return new_frog
 
@@ -170,7 +174,7 @@ class SFLA:
             new_frog.score = result
             extracted_bin_sols[int(submemeplex[self.q-1])] = new_frog
             memeplex = np.array(sorted(extracted_bin_sols, key = lambda x: extracted_bin_sols[x].score))
-            logger.info(f"Iteration {iter_idx} -- Local Search of Memeplex {im + 1}: Bin Solution moved to Bin_ID -> {int(submemeplex[self.q-1])} ::: Mutation {idx + 1}/{self.no_of_mutation} finished!!")
+            logger.info(f"Iteration {iter_idx} -- Local Search of Memeplex {im + 1}: Bin Solution moved to Bin_ID -> {int(submemeplex[self.q-1])} ::: {new_frog} ::: Mutation {idx + 1}/{self.no_of_mutation} finished!!")
         
         return (extracted_bin_sols, im, memeplex)
         
@@ -210,7 +214,7 @@ class SFLA:
         logger.info(f"Memeplexes :::\n{self.memeplexes} ::: Best Frog => {self.bins_data.bin_solutions.get(self.memeplexes[0][0])}")
 
 if __name__ == "__main__":
-    n = 2
+    n = 6
     path = "./../data/bin1data/N1C1W1_A.BPP"
-    sfla = SFLA(frogs=20, mplx_no=4, no_of_iteration=n, no_of_mutation=2, q=4)  
+    sfla = SFLA(frogs=20, mplx_no=4, no_of_iteration=n, no_of_mutation=4, q=4)  
     sfla.run_sfla(path)
