@@ -1,7 +1,8 @@
+import copy
 import sys, logging
-import copy, time
+import time
 import numpy as np
-
+import concurrent.futures
 from utils.binpackingsolution import BinPackingSolutions
 from utils.binpackingsolution import BinDetails
 
@@ -26,7 +27,8 @@ class SFLA:
         self.no_of_mutation = no_of_mutation
         self.q = q
         self.bins_data = BinPackingSolutions()
-        self.rng = np.random.default_rng(98765)
+        self.seed_seq = np.random.SeedSequence(98765)
+        # self.rng = np.random.default_rng(self.seed_seq)
 
     def __repr__(self):
         return f"SFLA (Frogs = {self.frogs}, Memeplexes = {self.mplx_no})"
@@ -42,7 +44,23 @@ class SFLA:
     def memeplexes(self, memeplexes: np.ndarray):
         self._memeplexes = memeplexes
 
-    def find_score(self, bin_sol: BinDetails=None):
+    def find_score(self, id=-1, bin_sol: BinDetails=None, initial=False):
+        """Find score using the formula:
+            score = 1 - (sum((sum_of_weight[i]/c)^2 for each bin i)/no_of_bins)
+        """
+        k = 2
+        if initial and id != -1:
+            no_of_bins = self.bins_data.bin_solutions[id].no_of_bins
+            bin_sum = self.bins_data.max_bin_capacity - np.array(self.bins_data.bin_solutions[id].free_bin_caps)
+            score = 1 - (np.sum((bin_sum/self.bins_data.max_bin_capacity) ** k)/no_of_bins)
+            self.bins_data.bin_solutions[id].score = score
+        else:
+            no_of_bins = bin_sol.no_of_bins
+            bin_sum = self.bins_data.max_bin_capacity - np.array(bin_sol.free_bin_caps)
+            score = 1 - (np.sum((bin_sum/self.bins_data.max_bin_capacity) ** k)/no_of_bins)
+            return score
+
+    def find_score_multi(self, bin_sol: BinDetails=None):
         """Find score using the formula:
             score = 1 - (sum((sum_of_weight[i]/c)^2 for each bin i)/no_of_bins)
         """
@@ -52,19 +70,31 @@ class SFLA:
         score = 1 - (np.sum((bin_sum/self.bins_data.max_bin_capacity) ** k)/no_of_bins)
         bin_sol.score = score
 
-    def generate_one_frog(self):
-        bin_sol = self.bins_data.best_fit_heuristic() 
-        self.find_score(bin_sol)
-        return bin_sol
+    def generate_one_frog(self, frog_args):
+        frog_id, seed = frog_args
+        bin_sol = self.bins_data.best_fit_heuristic_multi(seed) 
+        self.find_score_multi(bin_sol)
+        return (frog_id, bin_sol)
 
     def generate_init_population(self):
         """Generation of initial population
         """
         logger.info(f"Generating initial population (Number of frogs: {self.frogs})")
-                
-        for frog_id in range(self.frogs):
-            res_bin = self.generate_one_frog()
-            self.bins_data.bin_solutions[frog_id] = res_bin
+        
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            new_seeds = self.seed_seq.spawn(self.frogs)
+            args = [[frog_id, seed] for frog_id, seed in zip(range(self.frogs), new_seeds)]
+            results = executor.map(self.generate_one_frog, args)
+            for r in results:
+                if r:
+                    self.bins_data.bin_solutions[r[0]] = r[1]
+
+        # for frog_id in range(self.frogs):
+        #     self.generate_one_frog(frog_id)
+
+        # for frog_id in range(self.frogs):
+        #     self.bins_data.best_fit_heuristic(frog_id) 
+        #     self.find_score(frog_id, initial=True)
 
     def sort_frog(self):
         logger.info(f"Sorting the frogs and making {self.mplx_no} memeplexes with {self.frogs} frogs each")
@@ -81,21 +111,22 @@ class SFLA:
         new_locations = [id for id, bins in enumerate(worst_frog) if item in bins]
         return new_locations[0]
 
-    def generate_swap_set(self, best_sol, worst_sol, fw):
+    def generate_swap_set(self, best_sol, worst_sol, fw, seed):
         """Calculates next step
         Args:
             best_sol, worst_sol, fw
         Returns:
             swap_set
         """
+        rng = np.random.default_rng(seed)
         swap_set = np.array([[i, item] for i in range(len(best_sol)) for item in best_sol[i] if item not in worst_sol[i]])
         old_size = swap_set.shape[0]
         new_size = int(fw * old_size)
-        idxs = self.rng.permutation(old_size)[:new_size]
+        idxs = rng.permutation(old_size)[:new_size]
         swap_set = swap_set[idxs]
         return swap_set
 
-    def new_step(self, best_frog: BinDetails, worst_frog: BinDetails):
+    def new_step(self, best_frog: BinDetails, worst_frog: BinDetails, seed):
         """Calculates next step
         Args:
             best_frog: best frog 
@@ -104,10 +135,13 @@ class SFLA:
         Returns:
             new_frog: mutated Bin Solution
         """
+        new_seed = seed.spawn(1)
         fw = best_frog.score/worst_frog.score
-        swap_set = self.generate_swap_set(best_frog.bins, worst_frog.bins, fw)
+        swap_set = self.generate_swap_set(best_frog.bins, worst_frog.bins, fw, new_seed[0])
+
         new_sol = copy.deepcopy(worst_frog.bins)
         new_free_bin = copy.deepcopy(worst_frog.free_bin_caps)
+        
         for bin_id, item in swap_set:
             if new_free_bin[bin_id] >= item:
                 old_bin_id = self.find_old_bin_id(new_sol, item)
@@ -115,6 +149,7 @@ class SFLA:
                 new_free_bin[bin_id] -= item
                 new_sol[old_bin_id].remove(item)
                 new_free_bin[old_bin_id] += item
+
         idxs = [i for i, size in enumerate(new_free_bin) if size == self.bins_data.max_bin_capacity]
         new_free_bin = [size for i, size in enumerate(new_free_bin) if i not in idxs]
         new_sol = [bin_items for i, bin_items in enumerate(new_sol) if i not in idxs]
@@ -133,13 +168,14 @@ class SFLA:
             im: current memeplex index
             memeplex: modified memeplex
         """
-        im, iter_idx = ls_args
+        im, iter_idx, seed = ls_args
+        rng = np.random.default_rng(seed)
         memeplex = self.memeplexes[im]
         extracted_bin_sols = {int(item):self.bins_data.bin_solutions.get(item) for item in memeplex}
 
         for idx in range(self.no_of_mutation):
             logger.info(f"Iteration {iter_idx} -- Local Search of Memeplex {im + 1}: Mutation {idx + 1}/{self.no_of_mutation}")
-            rValue = self.rng.random(self.FrogsEach) * self.weights
+            rValue = rng.random(self.FrogsEach) * self.weights
             subindex = np.sort(np.argsort(rValue)[::-1][0:self.q])
             submemeplex = memeplex[subindex] 
 
@@ -150,22 +186,23 @@ class SFLA:
             censorship = False
             
             logger.info(f"Iteration {iter_idx} -- Memeplex {im + 1}: Learn from local best Pb")
-            new_frog = self.new_step(Pb, Pw)
-            self.find_score(new_frog)
+            new_frog = self.new_step(Pb, Pw, seed)
+            self.find_score_multi(new_frog)
             if new_frog.score > Pw.score:
                 globStep = True     
             
             if globStep:
                 logger.info(
                     f"Iteration {iter_idx} -- Memeplex {im + 1}: Score didn't improve... Learn from global best Pb")
-                new_frog = self.new_step(self.frog_gb, Pw)
-                self.find_score(new_frog)
+                new_frog = self.new_step(self.frog_gb, Pw, seed)
+                self.find_score_multi(new_frog)
                 if new_frog.score > Pw.score:
                     censorship = True
 
             if censorship:
                 logger.info(f"Iteration {iter_idx} -- Memeplex {im + 1}: Still score didn't improve... generating a new frog")
-                new_frog = self.generate_one_frog()
+                new_frog = self.bins_data.best_fit_heuristic_multi(seed)
+                self.find_score_multi(new_frog)
 
             extracted_bin_sols[int(submemeplex[self.q-1])] = new_frog
             memeplex = np.array(sorted(extracted_bin_sols, key = lambda x: extracted_bin_sols[x].score))
@@ -179,10 +216,16 @@ class SFLA:
             iter_idx: current iteration index
         """
         self.frog_gb = self.bins_data.bin_solutions.get(int(self.memeplexes[0][0]))
-        for frog_id in range(self.mplx_no):
-            res = self.local_search_one_memeplex([frog_id, iter_idx])
-            self.bins_data.bin_solutions.update(res[0])
-            self.memeplexes[res[1]] = res[2]
+        with concurrent.futures.ProcessPoolExecutor(max_workers=6) as executor:
+            new_seeds = self.seed_seq.spawn(self.mplx_no)
+            ls_args = [[frog_id, iter_idx, seed] for frog_id, seed in zip(range(self.mplx_no), new_seeds)]
+            results = executor.map(self.local_search_one_memeplex, ls_args)
+            
+            for r in results:
+                if r:
+                    self.bins_data.bin_solutions.update(r[0])
+                    self.memeplexes[r[1]] = r[2]
+
 
     def shuffle_memeplexes(self):
         """Shuffles the memeplexes and sorting them.
@@ -210,6 +253,7 @@ class SFLA:
         logger.info(f"Memeplexes :::\n{self.memeplexes} ::: Best Frog => {self.bins_data.bin_solutions.get(self.memeplexes[0][0])}")
         logger.info(f"Best Frog Bins => {self.bins_data.bin_solutions.get(self.memeplexes[0][0]).bins}")
         logger.info(f"Best Frog free capacities in bins => {self.bins_data.bin_solutions.get(self.memeplexes[0][0]).free_bin_caps}")
+
 
 if __name__ == "__main__":
     n = 100

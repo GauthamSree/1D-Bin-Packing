@@ -19,7 +19,7 @@ class BinPackingSolutions:
         self.max_bin_capacity = 30
         self.items = np.array([5, 14, 11, 8, 3, 2, 13, 1, 5, 6, 9, 4, 7, 12, 10, 15])
         self.no_of_items = self.items.size
-        self.rng = np.random.default_rng(1234)
+        self.rng = np.random.default_rng(12345)
 
     def __repr__(self):
         return f"BinPackingSolutions (No_of_items = {self.no_of_items}, Max_bin_capacity = {self.max_bin_capacity})"
@@ -38,7 +38,7 @@ class BinPackingSolutions:
         self.no_of_items = n
         self.max_bin_capacity = capacity
 
-    def best_fit_heuristic(self, id, gen=False):
+    def best_fit_heuristic(self):
         free_bin_caps = [self.max_bin_capacity]
         bins = [[]]
         shuffled_items = self.items.copy()
@@ -57,7 +57,4 @@ class BinPackingSolutions:
                 free_bin_caps.append(self.max_bin_capacity - item)
         
         new_bin = BinDetails(bins, free_bin_caps)
-        if gen:
-            return new_bin
-
-        self.bin_solutions[id] = new_bin
+        return new_bin

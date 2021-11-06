@@ -5,5 +5,6 @@ __pycache__/
 data/
 
 # Testing
+sfla_seed.py
 debug.log
-mutation.py
+mutation*.py
