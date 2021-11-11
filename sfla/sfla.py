@@ -206,16 +206,27 @@ class SFLA:
             self.local_search(idx+1)
             self.shuffle_memeplexes()
         e1 = time.time()
-        logger.info(f"Time taken: {e1-s1}")
-        logger.info(f"Memeplexes :::\n{self.memeplexes} ::: Best Frog => {self.bins_data.bin_solutions.get(self.memeplexes[0][0])}")
-        logger.info(f"Best Frog Bins => {self.bins_data.bin_solutions.get(self.memeplexes[0][0]).bins}")
-        logger.info(f"Best Frog free capacities in bins => {self.bins_data.bin_solutions.get(self.memeplexes[0][0]).free_bin_caps}")
+        best_solution = self.bins_data.bin_solutions.get(self.memeplexes[0][0])
+        logger.info(f"Time taken: {e1-s1}s")
+        logger.info(f"Memeplexes :::\n{self.memeplexes} ::: Best Frog => {best_solution}")
+        logger.info(f"Best Frog Bins => {best_solution.bins}")
+        logger.info(f"Best Frog free capacities in bins => {best_solution.free_bin_caps}")
+        
+        with open("Result.txt", 'w') as result:
+            result.write("<==== RESULTS ====>\n")
+            result.write(f"Best minimum no of bins and Bin Efficiency by SFLA (Best Frog):- {best_solution}\n")
+            result.write(f"<--- Best Frog Bin Solution --->\n")
+            for bin_id, bin in enumerate(best_solution.bins):
+                result.write(f"Bin {bin_id + 1}: {bin}\n")
+            result.write(f"Free capacities in each bins: {best_solution.free_bin_caps}\n")
+
 
 if __name__ == "__main__":
     n = 100
-    path = "./../data/bin1data/N2C2W1_A.BPP"
+    path = "./../data/bin1data/N3C2W4_T.BPP"
     # path = "./../data/bin2data/N2W1B1R7.BPP"
     # path = "./../data/bin2data/N3W1B3R0.BPP"
+    # path = "./../data/bin2data/N1W1B1R5.BPP"
     # path = "./../data/bin3data/HARD9.BPP"
     sfla = SFLA(frogs=480, mplx_no=40, no_of_iteration=n, no_of_mutation=20, q=8)
     sfla.run_sfla(path)
