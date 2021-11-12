@@ -79,7 +79,8 @@ class SFLA:
 
     def find_old_bin_id(self, worst_frog, item):
         new_locations = [id for id, bins in enumerate(worst_frog) if item in bins]
-        return new_locations[0]
+        idx = self.rng.permutation(len(new_locations))[0]
+        return new_locations[idx]
 
     def generate_swap_set(self, best_sol, worst_sol, fw):
         """Calculates next step
