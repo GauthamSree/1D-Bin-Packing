@@ -82,51 +82,7 @@ class SFLA:
         new_locations = [id for id, bins in enumerate(worst_frog) if item in bins]
         return new_locations[0]
 
-    def generate_swap_set(self, best_sol, worst_sol, fw):
-        """Calculates next step
-        Args:
-            best_sol, worst_sol, fw
-        Returns:
-            swap_set
-        """
-        swap_set = np.array([[i, item] for i in range(len(best_sol)) for item in best_sol[i] if item not in worst_sol[i]])
-        old_size = swap_set.shape[0]
-        new_size = int(fw * old_size)
-        idxs = self.rng.permutation(old_size)[:new_size]
-        swap_set = swap_set[idxs]
-        return swap_set
-
-    def generate_combined_swap_set(self, best_sol, worst_sol, r1_sol, r2_sol):
-        """Calculates next step
-        Args:
-            best_sol, worst_sol, fw
-        Returns:
-            swap_set
-        """
-        swap_set_1 = np.array([[i, item] for i in range(len(best_sol)) for item in best_sol[i] if item not in worst_sol[i]])
-        swap_set_2 = np.array([[i, item] for i in range(len(best_sol)) for item in best_sol[i] if item not in r1_sol[i]])
-        swap_set_3 = np.array([[i, item] for i in range(len(best_sol)) for item in best_sol[i] if item not in r2_sol[i]])
-        combined_set: np.ndarray = np.concatenate((swap_set_1, swap_set_2, swap_set_3), axis=0)
-        old_size = combined_set.shape[0]
-        new_size = int(old_size/3)
-        idxs = self.rng.permutation(old_size)[:new_size]
-        swap_set = combined_set[idxs]
-        return swap_set
-
-    def new_step(self, best_frog: BinDetails, worst_frog: BinDetails, GCM:bool=False, r1_frog: BinDetails=None, r2_frog: BinDetails=None):
-        """Calculates next step
-        Args:
-            best_frog: best frog 
-            worst_frog: worst frog
-        
-        Returns:
-            new_frog: mutated Bin Solution
-        """
-        if GCM:
-            swap_set = self.generate_combined_swap_set(best_frog.bins, worst_frog.bins, r1_frog.bins, r2_frog.bins)
-        else:
-            fw = best_frog.score/worst_frog.score
-            swap_set = self.generate_swap_set(best_frog.bins, worst_frog.bins, fw)
+    def generate_new_bin_solution(self, worst_frog: BinDetails, swap_set):
         new_sol = copy.deepcopy(worst_frog.bins)
         new_free_bin = copy.deepcopy(worst_frog.free_bin_caps)
         for bin_id, item in swap_set:
@@ -141,6 +97,61 @@ class SFLA:
         new_sol = [bin_items for i, bin_items in enumerate(new_sol) if i not in idxs]
 
         new_frog = BinDetails(bins=new_sol, free_bin_caps=new_free_bin)
+        return new_frog
+
+    def generate_swap_set(self, best_sol, worst_sol, fw):
+        """Calculates next step
+        Args:
+            best_sol, worst_sol, fw
+        Returns:
+            swap_set
+        """
+        swap_set = np.array([[i, item] for i in range(len(best_sol)) for item in best_sol[i] if item not in worst_sol[i]])
+        old_size = swap_set.shape[0]
+        new_size = int(fw * old_size)
+        idxs = self.rng.permutation(old_size)[:new_size]
+        swap_set = swap_set[idxs]
+        return swap_set
+
+    def generate_combined_swap_set(self, best_sol, worst_sol, r1_sol, r2_sol, fw):
+        """Calculates next step
+        Args:
+            best_sol, worst_sol, fw
+        Returns:
+            swap_set
+        """
+        swap_set_1 = np.array([[i, item] for i in range(len(self.frog_gb.bins)) for item in self.frog_gb.bins[i] if item not in worst_sol[i]])
+        swap_set_2 = np.array([[i, item] for i in range(len(r1_sol)) for item in r1_sol[i] if item not in worst_sol[i]])
+        swap_set_3 = np.array([[i, item] for i in range(len(r2_sol)) for item in r2_sol[i] if item not in worst_sol[i]])
+        swap_set_4 = np.array([[i, item] for i in range(len(best_sol)) for item in best_sol[i] if item not in worst_sol[i]])
+        combined_set: np.ndarray = np.concatenate((swap_set_1, swap_set_2, swap_set_3), axis=0)
+        old_size = combined_set.shape[0]
+        new_size = int(old_size/3)
+        idxs = self.rng.permutation(old_size)[:new_size]
+        swap_set_gcm = combined_set[idxs]
+
+        old_size = swap_set_4.shape[0]
+        new_size = int(fw * old_size)
+        idxs = self.rng.permutation(old_size)[:new_size]
+        final_swap_set = np.concatenate((swap_set_gcm, swap_set_4[idxs]), axis=0)
+        return final_swap_set
+
+    def new_step(self, best_frog: BinDetails, worst_frog: BinDetails, GCM:bool=False, r1_frog: BinDetails=None, r2_frog: BinDetails=None):
+        """Calculates next step
+        Args:
+            best_frog: best frog 
+            worst_frog: worst frog
+        
+        Returns:
+            new_frog: mutated Bin Solution
+        """
+        fw = best_frog.score/worst_frog.score
+        if GCM:
+            swap_set = self.generate_combined_swap_set(best_frog.bins, worst_frog.bins, r1_frog.bins, r2_frog.bins, fw)
+        else:
+            swap_set = self.generate_swap_set(best_frog.bins, worst_frog.bins, fw)
+
+        new_frog = self.generate_new_bin_solution(worst_frog, swap_set)
         return new_frog
 
     def local_search_one_memeplex(self, ls_args):
@@ -194,10 +205,7 @@ class SFLA:
             if globStep:
                 logger.info(
                     f"Iteration {iter_idx} -- Memeplex {im + 1}: Score didn't improve... Learn from global best Pb")
-                if GCM:
-                     new_frog = self.new_step(self.frog_gb, Pw, GCM=True, r1_frog=r1_frog, r2_frog=r2_frog)
-                else:
-                    new_frog = self.new_step(self.frog_gb, Pw)
+                new_frog = self.new_step(self.frog_gb, Pw)
                 self.find_score(new_frog)
                 if new_frog.score > Pw.score:
                     censorship = True
@@ -252,9 +260,9 @@ class SFLA:
 
 if __name__ == "__main__":
     n = 100
-    # path = "./../data/bin1data/N2C2W1_A.BPP"
+    path = "./../data/bin1data/N3C2W4_T.BPP"
     # path = "./../data/bin2data/N2W1B1R7.BPP"
     # path = "./../data/bin2data/N3W1B3R0.BPP"
-    path = "./../data/bin3data/HARD1.BPP"
+    # path = "./../data/bin3data/HARD9.BPP"
     sfla = SFLA(frogs=480, mplx_no=40, no_of_iteration=n, no_of_mutation=20, q=8)
     sfla.run_sfla(path)

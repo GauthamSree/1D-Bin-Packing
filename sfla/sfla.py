@@ -96,17 +96,7 @@ class SFLA:
         swap_set = swap_set[idxs]
         return swap_set
 
-    def new_step(self, best_frog: BinDetails, worst_frog: BinDetails):
-        """Calculates next step
-        Args:
-            best_frog: best frog 
-            worst_frog: worst frog
-        
-        Returns:
-            new_frog: mutated Bin Solution
-        """
-        fw = best_frog.score/worst_frog.score
-        swap_set = self.generate_swap_set(best_frog.bins, worst_frog.bins, fw)
+    def generate_new_bin_solution(self, worst_frog: BinDetails, swap_set: list):
         new_sol = copy.deepcopy(worst_frog.bins)
         new_free_bin = copy.deepcopy(worst_frog.free_bin_caps)
         for bin_id, item in swap_set:
@@ -121,6 +111,20 @@ class SFLA:
         new_sol = [bin_items for i, bin_items in enumerate(new_sol) if i not in idxs]
 
         new_frog = BinDetails(bins=new_sol, free_bin_caps=new_free_bin)
+        return new_frog
+    
+    def new_step(self, best_frog: BinDetails, worst_frog: BinDetails):
+        """Calculates next step
+        Args:
+            best_frog: best frog 
+            worst_frog: worst frog
+        
+        Returns:
+            new_frog: mutated Bin Solution
+        """
+        fw = best_frog.score/worst_frog.score
+        swap_set = self.generate_swap_set(best_frog.bins, worst_frog.bins, fw)
+        new_frog = self.generate_new_bin_solution(worst_frog, swap_set)
         return new_frog
 
     def local_search_one_memeplex(self, ls_args):
