@@ -7,5 +7,7 @@ data/
 # Testing
 sfla_seed.py
 debug.log
-Result.txt
+Lsfla_rov.py
+Result*.txt
 mutation*.py
+a.m

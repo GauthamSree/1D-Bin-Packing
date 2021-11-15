@@ -1,10 +1,15 @@
 import numpy as np
+import copy
+import operator, functools
+
+from scipy.stats.stats import rankdata
 
 class BinDetails:
-    def __init__(self, bins, free_bin_caps):
+    def __init__(self, bins, free_bin_caps, rov_continous):
         self.bins = bins
         self.free_bin_caps = free_bin_caps
         self.no_of_bins = len(bins)
+        self.rov_continous = rov_continous
         self.score = -1
     
     def __repr__(self):
@@ -38,23 +43,102 @@ class BinPackingSolutions:
         self.no_of_items = n
         self.max_bin_capacity = capacity
 
-    def best_fit_heuristic(self):
+    def first_fit_algorithm(self, rov_continous):
         free_bin_caps = [self.max_bin_capacity]
         bins = [[]]
-        shuffled_items = self.items.copy()
-        self.rng.shuffle(shuffled_items)
+        idxs = rankdata(rov_continous, method='ordinal') - 1
+        ranked_items = copy.deepcopy(self.items)
+        ranked_items = ranked_items[idxs]
+
         for i in range(self.no_of_items):
-            item = shuffled_items[i]
-            free_caps = np.array(free_bin_caps)
-            new_caps = (free_caps - item)
-            valid_idx = np.where(new_caps >= 0)[0]
-            if valid_idx.size:
-                idx = valid_idx[new_caps[valid_idx].argmin()]
+            item = ranked_items[i]
+            idx = len(free_bin_caps) - 1
+            if free_bin_caps[idx] >= item:
                 bins[idx].append(item)
                 free_bin_caps[idx] -= item
             else:
                 bins.append([item])
                 free_bin_caps.append(self.max_bin_capacity - item)
         
-        new_bin = BinDetails(bins, free_bin_caps)
+        new_bin = BinDetails(bins, free_bin_caps, rov_continous)
+        return new_bin
+
+    def best_fit_algorithm(self, ranked_values):
+        free_bin_caps = [self.max_bin_capacity]
+        bins = [[]]
+        rov_continous = [[]]
+        idxs = rankdata(ranked_values, method='ordinal') - 1
+        
+        ranked_items = copy.deepcopy(self.items)  
+        ranked_items = ranked_items[idxs]
+
+        for i in range(self.no_of_items):
+            item = ranked_items[i]
+            ranked_val = ranked_values[i]
+            free_caps = np.array(free_bin_caps)
+            new_caps = (free_caps - item)
+            valid_idx = np.where(new_caps >= 0)[0]
+            if valid_idx.size:
+                idx = valid_idx[new_caps[valid_idx].argmin()]
+                bins[idx].append(item)
+                rov_continous[idx].append(ranked_val)
+                free_bin_caps[idx] -= item
+            else:
+                bins.append([item])
+                rov_continous.append([ranked_val])
+                free_bin_caps.append(self.max_bin_capacity - item)
+        
+        rov_continous = np.array(functools.reduce(operator.iconcat, rov_continous, []))
+        new_bin = BinDetails(bins, free_bin_caps, rov_continous)
+        return new_bin
+
+    def first_fit_heuristic(self):
+        free_bin_caps = [self.max_bin_capacity]
+        bins = [[]]
+        rov_continous = self.rng.uniform(0, 5, self.items.shape[0])
+        idxs = rankdata(rov_continous, method='ordinal') - 1
+        ranked_items = copy.deepcopy(self.items)
+        ranked_items = ranked_items[idxs]
+
+        for i in range(self.no_of_items):
+            item = ranked_items[i]
+            idx = len(free_bin_caps) - 1
+            if free_bin_caps[idx] >= item:
+                bins[idx].append(item)
+                free_bin_caps[idx] -= item
+            else:
+                bins.append([item])
+                free_bin_caps.append(self.max_bin_capacity - item)
+        
+        new_bin = BinDetails(bins, free_bin_caps, rov_continous)
+        return new_bin
+
+    def best_fit_heuristic(self):
+        free_bin_caps = [self.max_bin_capacity]
+        bins = [[]]
+        rov_continous = [[]]
+        ranked_values = self.rng.uniform(0, 5, self.items.shape[0])
+        idxs = rankdata(ranked_values, method='ordinal') - 1
+        
+        ranked_items = copy.deepcopy(self.items)  
+        ranked_items = ranked_items[idxs]
+
+        for i in range(self.no_of_items):
+            item = ranked_items[i]
+            ranked_val = ranked_values[i]
+            free_caps = np.array(free_bin_caps)
+            new_caps = (free_caps - item)
+            valid_idx = np.where(new_caps >= 0)[0]
+            if valid_idx.size:
+                idx = valid_idx[new_caps[valid_idx].argmin()]
+                bins[idx].append(item)
+                rov_continous[idx].append(ranked_val)
+                free_bin_caps[idx] -= item
+            else:
+                bins.append([item])
+                rov_continous.append([ranked_val])
+                free_bin_caps.append(self.max_bin_capacity - item)
+        
+        rov_continous = np.array(functools.reduce(operator.iconcat, rov_continous, []))
+        new_bin = BinDetails(bins, free_bin_caps, rov_continous)
         return new_bin

@@ -1,5 +1,5 @@
 import sys, logging
-import copy, time
+import time
 import numpy as np
 
 from utils.binpackingsolution import BinPackingSolutions
@@ -76,42 +76,6 @@ class SFLA:
             for i in range(self.mplx_no):
                 memeplexes[i, j] = sorted_fitness[i + (self.mplx_no*j)]
         return memeplexes
-
-    def find_old_bin_id(self, worst_frog, item):
-        new_locations = [id for id, bins in enumerate(worst_frog) if item in bins]
-        idx = self.rng.permutation(len(new_locations))[0]
-        return new_locations[idx]
-
-    def generate_swap_set(self, best_sol, worst_sol, fw):
-        """Calculates next step
-        Args:
-            best_sol, worst_sol, fw
-        Returns:
-            swap_set
-        """
-        swap_set = np.array([[i, item] for i in range(len(best_sol)) for item in best_sol[i] if item not in worst_sol[i]])
-        old_size = swap_set.shape[0]
-        new_size = int(fw * old_size)
-        idxs = self.rng.permutation(old_size)[:new_size]
-        swap_set = swap_set[idxs]
-        return swap_set
-
-    def generate_new_bin_solution(self, worst_frog: BinDetails, swap_set: list):
-        new_sol = copy.deepcopy(worst_frog.bins)
-        new_free_bin = copy.deepcopy(worst_frog.free_bin_caps)
-        for bin_id, item in swap_set:
-            if new_free_bin[bin_id] >= item:
-                old_bin_id = self.find_old_bin_id(new_sol, item)
-                new_sol[bin_id].append(item)
-                new_free_bin[bin_id] -= item
-                new_sol[old_bin_id].remove(item)
-                new_free_bin[old_bin_id] += item
-        idxs = [i for i, size in enumerate(new_free_bin) if size == self.bins_data.max_bin_capacity]
-        new_free_bin = [size for i, size in enumerate(new_free_bin) if i not in idxs]
-        new_sol = [bin_items for i, bin_items in enumerate(new_sol) if i not in idxs]
-
-        new_frog = BinDetails(bins=new_sol, free_bin_caps=new_free_bin)
-        return new_frog
     
     def new_step(self, best_frog: BinDetails, worst_frog: BinDetails):
         """Calculates next step
@@ -122,9 +86,9 @@ class SFLA:
         Returns:
             new_frog: mutated Bin Solution
         """
-        fw = best_frog.score/worst_frog.score
-        swap_set = self.generate_swap_set(best_frog.bins, worst_frog.bins, fw)
-        new_frog = self.generate_new_bin_solution(worst_frog, swap_set)
+        new_shift = self.rng.random() * (best_frog.rov_continous - worst_frog.rov_continous)
+        new_rov_continous = worst_frog.rov_continous + new_shift
+        new_frog = self.bins_data.best_fit_algorithm(new_rov_continous)
         return new_frog
 
     def local_search_one_memeplex(self, ls_args):
@@ -228,10 +192,10 @@ class SFLA:
 
 if __name__ == "__main__":
     n = 100
-    path = "./../data/bin1data/N3C2W4_T.BPP"
+    # path = "./../data/bin1data/N3C2W4_T.BPP"
     # path = "./../data/bin2data/N2W1B1R7.BPP"
     # path = "./../data/bin2data/N3W1B3R0.BPP"
     # path = "./../data/bin2data/N1W1B1R5.BPP"
-    # path = "./../data/bin3data/HARD9.BPP"
-    sfla = SFLA(frogs=480, mplx_no=40, no_of_iteration=n, no_of_mutation=20, q=8)
+    path = "./../data/bin3data/HARD9.BPP"
+    sfla = SFLA(frogs=250, mplx_no=5, no_of_iteration=n, no_of_mutation=5, q=8)   # 250, 5, 5, 8 and 500, 10, 10, 16
     sfla.run_sfla(path)
