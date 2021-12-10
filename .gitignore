@@ -5,9 +5,14 @@ __pycache__/
 data/
 
 # Testing
+fso/
 sfla_seed.py
 debug.log
 Lsfla_rov.py
 Result*.txt
 mutation*.py
 a.m
+data*.csv
+combined*.csv
+printgraphs.ipynb
+result.py

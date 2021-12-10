@@ -142,3 +142,34 @@ class BinPackingSolutions:
         rov_continous = np.array(functools.reduce(operator.iconcat, rov_continous, []))
         new_bin = BinDetails(bins, free_bin_caps, rov_continous)
         return new_bin
+
+    def best_fit_heuristic_multi(self, seed):
+        free_bin_caps = [self.max_bin_capacity]
+        bins = [[]]
+        rov_continous = [[]]
+        rng = np.random.default_rng(seed)
+        ranked_values = rng.uniform(0, 5, self.items.shape[0])
+        idxs = rankdata(ranked_values, method='ordinal') - 1
+        
+        ranked_items = copy.deepcopy(self.items)  
+        ranked_items = ranked_items[idxs]
+
+        for i in range(self.no_of_items):
+            item = ranked_items[i]
+            ranked_val = ranked_values[i]
+            free_caps = np.array(free_bin_caps)
+            new_caps = (free_caps - item)
+            valid_idx = np.where(new_caps >= 0)[0]
+            if valid_idx.size:
+                idx = valid_idx[new_caps[valid_idx].argmin()]
+                bins[idx].append(item)
+                rov_continous[idx].append(ranked_val)
+                free_bin_caps[idx] -= item
+            else:
+                bins.append([item])
+                rov_continous.append([ranked_val])
+                free_bin_caps.append(self.max_bin_capacity - item)
+        
+        rov_continous = np.array(functools.reduce(operator.iconcat, rov_continous, []))
+        new_bin = BinDetails(bins, free_bin_caps, rov_continous)
+        return new_bin

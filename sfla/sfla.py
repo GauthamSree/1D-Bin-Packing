@@ -188,7 +188,8 @@ class SFLA:
             for bin_id, bin in enumerate(best_solution.bins):
                 result.write(f"Bin {bin_id + 1}: {bin}\n")
             result.write(f"Free capacities in each bins: {best_solution.free_bin_caps}\n")
-
+        
+        return best_solution, (e1 - s1)
 
 if __name__ == "__main__":
     n = 100
